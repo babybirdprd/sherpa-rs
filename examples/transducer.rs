@@ -36,9 +36,12 @@ pub fn main() {
 
     let start_t = Instant::now();
     let result = recognizer.transcribe(sample_rate, &samples);
-    let lower_case = result.to_lowercase();
+    let lower_case = result.text.to_lowercase();
     let trimmed_result = lower_case.trim();
 
     println!("Time taken for decode: {:?}", start_t.elapsed());
     println!("Transcribe result: {:?}", trimmed_result);
+    println!("Tokens: {:?}", result.tokens);
+    println!("Timestamps: {:?}", result.timestamps);
+    println!("Durations: {:?}", result.durations);
 }

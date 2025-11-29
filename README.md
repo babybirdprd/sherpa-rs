@@ -16,6 +16,7 @@ Rust bindings to [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
 - Voice activity detection
 - Audio tagging
 - Keyword spotting
+- Canary model support (NVIDIA TDT v2/v3)
 
 ## Supported Platforms
 
