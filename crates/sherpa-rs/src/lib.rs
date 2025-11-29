@@ -94,6 +94,7 @@ pub struct OfflineRecognizerResult {
     pub lang: String,
     pub text: String,
     pub timestamps: Vec<f32>,
+    pub durations: Vec<f32>,
     pub tokens: Vec<String>,
 }
 
@@ -106,6 +107,11 @@ impl OfflineRecognizerResult {
             Vec::new()
         } else {
             unsafe { std::slice::from_raw_parts(result.timestamps, count).to_vec() }
+        };
+        let durations = if result.durations.is_null() {
+            Vec::new()
+        } else {
+            unsafe { std::slice::from_raw_parts(result.durations, count).to_vec() }
         };
         let mut tokens = Vec::with_capacity(count);
         let mut next_token = result.tokens;
@@ -121,6 +127,7 @@ impl OfflineRecognizerResult {
             lang,
             text,
             timestamps,
+            durations,
             tokens,
         }
     }

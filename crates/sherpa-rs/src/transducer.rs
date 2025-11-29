@@ -1,4 +1,3 @@
-use crate::utils::cstr_to_string;
 use crate::{get_default_provider, utils::cstring_from_str};
 use eyre::{bail, Result};
 use std::mem;
@@ -6,6 +5,8 @@ use std::mem;
 pub struct TransducerRecognizer {
     recognizer: *const sherpa_rs_sys::SherpaOnnxOfflineRecognizer,
 }
+
+pub type TransducerRecognizerResult = super::OfflineRecognizerResult;
 
 #[derive(Debug, Clone)]
 pub struct TransducerConfig {
@@ -25,6 +26,9 @@ pub struct TransducerConfig {
     pub model_type: String,
     pub debug: bool,
     pub provider: Option<String>,
+    pub src_lang: String,
+    pub tgt_lang: String,
+    pub use_pnc: bool,
 }
 
 impl Default for TransducerConfig {
@@ -46,6 +50,9 @@ impl Default for TransducerConfig {
             blank_penalty: 0.0,
             debug: false,
             provider: None,
+            src_lang: String::new(),
+            tgt_lang: String::new(),
+            use_pnc: false,
         }
     }
 }
@@ -67,6 +74,18 @@ impl TransducerRecognizer {
             let tokens = cstring_from_str(&config.tokens);
             let decoding_method = cstring_from_str(&config.decoding_method);
 
+            let src_lang = cstring_from_str(&config.src_lang);
+            let tgt_lang = cstring_from_str(&config.tgt_lang);
+
+            let mut canary = mem::zeroed::<sherpa_rs_sys::SherpaOnnxOfflineCanaryModelConfig>();
+            if config.model_type == "canary" {
+                canary.encoder = encoder.as_ptr();
+                canary.decoder = decoder.as_ptr();
+                canary.src_lang = src_lang.as_ptr();
+                canary.tgt_lang = tgt_lang.as_ptr();
+                canary.use_pnc = config.use_pnc as i32;
+            }
+
             let offline_model_config = sherpa_rs_sys::SherpaOnnxOfflineModelConfig {
                 transducer: sherpa_rs_sys::SherpaOnnxOfflineTransducerModelConfig {
                     encoder: encoder.as_ptr(),
@@ -80,6 +99,7 @@ impl TransducerRecognizer {
                 model_type: model_type.as_ptr(),
                 modeling_unit: modeling_unit.as_ptr(),
                 bpe_vocab: bpe_vocab.as_ptr(),
+                canary,
 
                 // NULLs
                 telespeech_ctc: mem::zeroed::<_>(),
@@ -92,7 +112,6 @@ impl TransducerRecognizer {
                 fire_red_asr: mem::zeroed::<_>(),
                 dolphin: mem::zeroed::<_>(),
                 zipformer_ctc: mem::zeroed::<_>(),
-                canary: mem::zeroed::<_>(),
                 wenet_ctc: mem::zeroed::<_>(),
             };
 
@@ -125,7 +144,11 @@ impl TransducerRecognizer {
         Ok(Self { recognizer })
     }
 
-    pub fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> String {
+    pub fn transcribe(
+        &mut self,
+        sample_rate: u32,
+        samples: &[f32],
+    ) -> TransducerRecognizerResult {
         unsafe {
             let stream = sherpa_rs_sys::SherpaOnnxCreateOfflineStream(self.recognizer);
             sherpa_rs_sys::SherpaOnnxAcceptWaveformOffline(
@@ -137,12 +160,12 @@ impl TransducerRecognizer {
             sherpa_rs_sys::SherpaOnnxDecodeOfflineStream(self.recognizer, stream);
             let result_ptr = sherpa_rs_sys::SherpaOnnxGetOfflineStreamResult(stream);
             let raw_result = result_ptr.read();
-            let text = cstr_to_string(raw_result.text as _);
+            let result = TransducerRecognizerResult::new(&raw_result);
 
             // Free
             sherpa_rs_sys::SherpaOnnxDestroyOfflineRecognizerResult(result_ptr);
             sherpa_rs_sys::SherpaOnnxDestroyOfflineStream(stream);
-            text
+            result
         }
     }
 }
